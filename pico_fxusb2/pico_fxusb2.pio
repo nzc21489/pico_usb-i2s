@@ -1,0 +1,165 @@
+.program pico_fxusb2
+
+public bitloop0:
+    wait 1 pin 8
+    wait 0 pin 8; falling edge of CS
+    wait 1 pin 9; riging edge of clk
+    in pins, 8; get 8 parallel usb data
+    push
+    wait 0 pin 9; falling edge of clk
+    
+
+.wrap_target
+bitloop1:
+    wait 1 pin 9; riging edge of clk
+    in pins, 8; get 8 parallel usb data
+    push
+    wait 0 pin 9; falling edge of clk
+.wrap
+    
+
+% c-sdk {
+
+static inline void pico_fxusb2_program_init(PIO pio, uint sm, uint offset, uint pin_base) {
+    pio_sm_config sm_config = pico_fxusb2_program_get_default_config(offset);
+
+    sm_config_set_in_pins(&sm_config, pin_base);
+
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_base, 10, false);
+
+    for (int i = 0; i < 10; i++)
+    {
+        pio_gpio_init(pio, pin_base + i);
+    }
+
+    sm_config_set_jmp_pin(&sm_config, pin_base+8);
+
+    sm_config_set_in_shift(&sm_config, false, false, 8);
+
+    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_RX);
+
+    pio_sm_init(pio, sm, offset, &sm_config);
+
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+%}
+
+
+
+
+.program pico_fxusb2_24bit
+
+.define public COUNT 2
+
+public bitloop0:
+    wait 1 pin 8
+    wait 0 pin 8; falling edge of CS
+    wait 1 pin 9; riging edge of clk
+    in pins, 8; get 8 parallel usb data
+    push
+    set x, (COUNT-1)
+    wait 0 pin 9; falling edge of clk
+    
+bitloop1:
+    wait 1 pin 9; riging edge of clk
+    in pins, 8; get 8 parallel usb data
+    push
+    wait 0 pin 9; falling edge of clk
+    jmp x-- bitloop1
+
+push0:
+    push
+    set x, COUNT
+    jmp bitloop1
+    
+
+% c-sdk {
+
+static inline void pico_fxusb2_24bit_program_init(PIO pio, uint sm, uint offset, uint pin_base) {
+    pio_sm_config sm_config = pico_fxusb2_24bit_program_get_default_config(offset);
+
+    sm_config_set_in_pins(&sm_config, pin_base);
+
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_base, 10, false);
+
+    for (int i = 0; i < 10; i++)
+    {
+        pio_gpio_init(pio, pin_base + i);
+    }
+
+    sm_config_set_jmp_pin(&sm_config, pin_base+8);
+
+    sm_config_set_in_shift(&sm_config, false, false, 8);
+
+    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_RX);
+
+    pio_sm_init(pio, sm, offset, &sm_config);
+
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+%}
+
+
+
+.program pico_fxusb2_communication
+
+public send_data:
+    pull
+    set x, 31
+    set pins, 1
+
+send_data_loop:
+    wait 0 pin 1; falling edge of clk
+    out pins, 1
+    wait 1 pin 1; riging edge of clk
+    in pins, 1; get data
+    jmp x-- send_data_loop
+
+send_data_finish:
+    push
+    set pins, 0
+
+.wrap_target
+public receive_data:
+    set x, 7
+
+receive_data_loop:
+    wait 0 pin 1; falling edge of clk
+    wait 1 pin 1; falling edge of clk
+    in pins, 1; get data
+    jmp x-- receive_data_loop
+
+receive_data_finish:
+    push
+    irq 0
+.wrap
+    
+
+% c-sdk {
+
+static inline void pico_fxusb2_communication_program_init(PIO pio, uint sm, uint offset, uint pin_base) {
+    pio_sm_config sm_config = pico_fxusb2_communication_program_get_default_config(offset);
+
+    sm_config_set_out_pins(&sm_config, pin_base + 2, 1);
+    sm_config_set_set_pins(&sm_config, pin_base + 2, 1);
+    sm_config_set_in_pins(&sm_config, pin_base);
+
+
+    // pin 0 : data in, pin 1 : clock in, pin 2 : data out
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_base + 2, 1, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_base, 2, false);
+
+    for (int i = 0; i < 3; i++)
+    {
+        pio_gpio_init(pio, pin_base + i);
+    }
+
+    sm_config_set_in_shift(&sm_config, true, false, 32);
+    sm_config_set_out_shift(&sm_config, true, false, 32);
+
+    pio_sm_init(pio, sm, offset, &sm_config);
+}
+
+%}
